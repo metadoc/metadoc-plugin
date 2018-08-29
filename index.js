@@ -24,7 +24,6 @@ class MetadocPlugin extends EventEmitter {
 
   set source (value) {
     let data = value
-    let filepath
 
     try {
       data = require(require('path').resolve(value))
@@ -73,7 +72,7 @@ class MetadocPlugin extends EventEmitter {
   }
 
   process () {
-    console.log('OVERRIDE ME!')
+    console.log('The plugin should override the process() method with its own implementation.')
   }
 }
 
