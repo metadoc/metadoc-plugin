@@ -1,6 +1,6 @@
 {
   "name": "@author.io/metadoc-plugin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An extendable base class for creating metadoc plugins.",
   "main": "index.js",
   "scripts": {
