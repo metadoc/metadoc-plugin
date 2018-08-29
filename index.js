@@ -44,6 +44,10 @@ class MetadocPlugin extends EventEmitter {
     this.emit('source', data)
   }
 
+  get data () {
+    return this.SOURCE
+  }
+
   mkdirp (dir) {
     try {
       fs.accessSync(dir, fs.W_OK)
