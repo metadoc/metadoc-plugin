@@ -166,6 +166,17 @@ class MetadocPlugin extends EventEmitter {
     process.stdout.write(content)
     process.exit(0)
   }
+
+  run () {
+    let source = this.getCLIArg('--source')
+
+    if (source) {
+      this.source = fs.readFileSync(source).toString()
+      this.process()
+    } else {
+      this.monitorStdin()
+    }
+  }
 }
 
 module.exports = MetadocPlugin
