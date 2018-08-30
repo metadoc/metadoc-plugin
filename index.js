@@ -11,6 +11,14 @@ class MetadocPlugin extends EventEmitter {
     this.OUTPUT = ''
   }
 
+  get basePluginVersion () {
+    return require(path.join(__dirname, 'package.json')).version
+  }
+
+  get version () {
+    return require(path.join(process.cwd(), 'package.json')).version
+  }
+
   get output () {
     return this.OUTPUT
   }
