@@ -2,6 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const minimist = require('minimist-string')
 const EventEmitter = require('events').EventEmitter
+const pkg = require(path.join(process.cwd(), 'package.json'))
 
 class MetadocPlugin extends EventEmitter {
   constructor () {
@@ -11,12 +12,16 @@ class MetadocPlugin extends EventEmitter {
     this.OUTPUT = ''
   }
 
-  get basePluginVersion () {
+  get baseVersion () {
     return require(path.join(__dirname, 'package.json')).version
   }
 
   get version () {
-    return require(path.join(process.cwd(), 'package.json')).version
+    return pkg.version
+  }
+
+  get name () {
+    return pkg.name
   }
 
   get output () {
@@ -118,7 +123,7 @@ class MetadocPlugin extends EventEmitter {
 
     let content = ''
     let timer = setTimeout(() => {
-      console.error('No input source available.')
+      console.error(`No input supplied to ${this.name}.`)
       process.exit(1)
     }, 2000)
 
@@ -135,10 +140,12 @@ class MetadocPlugin extends EventEmitter {
       this.source = content
       this.process()
     })
+
+    this.emit('monitor.stdin')
   }
 
   process () {
-    console.log('The plugin should override the process() method with its own implementation.')
+    console.log(`The ${this.name} (v${this.version}) plugin should override the process() method with its own implementation.`)
   }
 
   writeOutput (content = null) {
@@ -171,7 +178,10 @@ class MetadocPlugin extends EventEmitter {
       process.exit(0)
     }
 
-    process.stdout.write(content)
+    if (process.env.npm_lifecycle_script && process.env.npm_lifecycle_script.indexOf('| metadoc') > 0) {
+      process.stdout.write(content)
+    }
+
     process.exit(0)
   }
 
