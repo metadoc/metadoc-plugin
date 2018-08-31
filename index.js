@@ -2,7 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const minimist = require('minimist-string')
 const EventEmitter = require('events').EventEmitter
-const pkg = require(path.join(process.cwd(), 'package.json'))
+const pkg = require('./package.json')
 
 class MetadocPlugin extends EventEmitter {
   constructor () {
