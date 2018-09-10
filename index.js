@@ -1,8 +1,9 @@
 const fs = require('fs')
 const path = require('path')
 const minimist = require('minimist-string')
+const chalk = require('chalk')
 const EventEmitter = require('events').EventEmitter
-const pkg = require('./package.json')
+const pkg = require(path.join(process.cwd(), 'package.json'))
 
 class MetadocPlugin extends EventEmitter {
   constructor () {
@@ -10,22 +11,24 @@ class MetadocPlugin extends EventEmitter {
 
     this.SOURCE = ''
     this.OUTPUT = ''
+    this.NAME = require('./package.json').name
+    this.OUTPUT_WAS_WRITTEN = false
   }
 
   get baseVersion () {
     return require(path.join(__dirname, 'package.json')).version
   }
 
-  get version () {
-    return pkg.version
+  get name () {
+    return this.NAME.split('/').pop()
   }
 
-  get name () {
-    return pkg.name
+  set name (value) {
+    this.NAME = name
   }
 
   get output () {
-    return this.OUTPUT
+    return (this.OUTPUT || '').trim().length > 0 ? this.OUTPUT : this.identifyOutputDirectory()
   }
 
   set output (value) {
@@ -43,19 +46,45 @@ class MetadocPlugin extends EventEmitter {
       data = require(require('path').resolve(value))
       this.SOURCE = data
     } catch (e) {
-      data = data.split('{')
-      data.shift()
-      data = `{${data.join('{')}`
+      data = /(\{[^}].*[^]*\})/gim.exec(data)
 
       try {
-        this.SOURCE = JSON.parse(data)
+        this.SOURCE = JSON.parse(data[1])
       } catch (e) {
-        console.error(e)
+        fs.writeFileSync('./error.output.log', data.toString(), 'utf8')
+        console.error(chalk.red.bold(e.message))
+        console.log('\n' + chalk.yellow.bold('Problem within:\n') + chalk.gray(`${data.toString().substr(0,75)}\n...clipped...\n${data.toString().substr(data.toString().length - 75)}`))
+
+        if (e.message.toLowerCase().indexOf('json at position') >= 0) {
+          let match = /position\s([0-9]+)/gi.exec(e.message)
+
+          if (match !== null) {
+            let index = parseInt(match[1], 10)
+            const size = index
+
+            if ((index - 10) <= 0) {
+              index = 0
+            } else {
+              index -= 10
+            }
+
+            let position = size - index
+            let output = data.toString().substr(index, 75)
+
+            output = `${position === 0 ? chalk.bgYellow.black(output.substr(0, 1)) : (output.substr(0, position - 1) + chalk.bgYellow.black(output.substr(position, 1)) + output.substr(position + 1))}`
+
+            console.log(`\n${chalk.yellow.bold('Relevant code snippet:')}\n${chalk.gray('(around index ' + match[1] + ')')}\n${output}`)
+          }
+        }
+
+        console.log(e.stack)
+
+        process.emit('SIGINT')
         process.exit(1)
       }
     }
 
-    this.emit('source', data)
+    this.emit('source', this.SOURCE)
   }
 
   get data () {
@@ -67,10 +96,10 @@ class MetadocPlugin extends EventEmitter {
       fs.accessSync(dir, fs.W_OK)
     } catch (e) {
       try {
-        fs.mkdir(dir)
+        fs.mkdirSync(dir)
       } catch (ee) {
         this.mkdirp(path.dirname(dir))
-        fs.mkdir(dir)
+        fs.mkdirSync(dir)
       }
     }
 
@@ -119,15 +148,16 @@ class MetadocPlugin extends EventEmitter {
   // should accept piped output from metadoc or
   // another plugin. Example: metadoc --source ./src --output ./docs | metadoc-myplugin
   monitorStdin () {
-    const stdin = process.openStdin()
-
     let content = ''
     let timer = setTimeout(() => {
       console.error(`No input supplied to ${this.name}.`)
       process.exit(1)
     }, 2000)
 
-    stdin.on('data', d => {
+    process.stdin.resume()
+    process.stdin.setEncoding('utf8')
+
+    process.stdin.on('data', d => {
       if (timer !== null) {
         clearTimeout(timer)
         timer = null
@@ -136,7 +166,7 @@ class MetadocPlugin extends EventEmitter {
       content += d.toString()
     })
 
-    stdin.on('end', () => {
+    process.stdin.on('end', () => {
       this.source = content
       this.process()
     })
@@ -148,11 +178,10 @@ class MetadocPlugin extends EventEmitter {
     console.log(`The ${this.name} (v${this.version}) plugin should override the process() method with its own implementation.`)
   }
 
-  writeOutput (content = null) {
-    let source = this.getCLIArg('--source')
-
-    content = content || this.source
-    content = JSON.stringify(content, null, 2)
+  identifyOutputDirectory () {
+    if (this.OUTPUT !== undefined && this.OUTPUT !== null && this.OUTPUT.trim().length > 0) {
+      return this.OUTPUT
+    }
 
     let output = this.getCLIArg('--output')
 
@@ -161,28 +190,39 @@ class MetadocPlugin extends EventEmitter {
 
       if (!output && args.hasOwnProperty('output')) {
         output = path.resolve(args.output)
-
-        if (!output.endsWith('.json')) {
-          output = path.join(output, 'api.json')
-        }
       }
     }
 
+    return output || null
+  }
+
+  writeOutput (content = null) {
+    this.OUTPUT_WAS_WRITTEN = true
+
+    let source = this.getCLIArg('--source')
+
+    content = content || this.source
+    content = JSON.stringify(content, null, 2)
+
+    let output = this.identifyOutputDirectory()
+
     if (output) {
+      if (!output.endsWith('.json')) {
+        output = path.join(output, 'api.json')
+      }
+
       fs.writeFileSync(output, content)
-      process.exit(0)
-    }
-
-    if (source) {
+    } else if (source) {
       fs.writeFileSync(source, content)
-      process.exit(0)
     }
 
-    if (process.env.npm_lifecycle_script && process.env.npm_lifecycle_script.indexOf('| metadoc') > 0) {
+    if (this.piped) {
       process.stdout.write(content)
     }
+  }
 
-    process.exit(0)
+  get piped () {
+    return process.env.npm_lifecycle_script.indexOf(`| ${this.name}`) >= 0 && process.env.npm_lifecycle_script.split('|').pop().indexOf(this.name) < 0
   }
 
   run () {
@@ -191,6 +231,10 @@ class MetadocPlugin extends EventEmitter {
     if (source) {
       this.source = fs.readFileSync(source).toString()
       this.process()
+
+      if (!this.OUTPUT_WAS_WRITTEN && this.piped) {
+        process.stdout.write(JSON.stringify(this.source))
+      }
     } else {
       this.monitorStdin()
     }
