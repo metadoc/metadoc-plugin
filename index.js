@@ -13,6 +13,14 @@ class MetadocPlugin extends EventEmitter {
     this.OUTPUT = ''
     this.NAME = require('./package.json').name
     this.OUTPUT_WAS_WRITTEN = false
+
+    this.on('start', () => console.log(`Started ${this.name}`))
+
+    process.on('exit', () => console.log(this.exitMessage))
+  }
+
+  get exitMessage () {
+    return `${this.name} processing complete.`
   }
 
   get baseVersion () {
@@ -231,7 +239,7 @@ class MetadocPlugin extends EventEmitter {
     if (source) {
       this.source = fs.readFileSync(source).toString()
       this.process()
-
+console.log(!this.OUTPUT_WAS_WRITTEN, this.piped);
       if (!this.OUTPUT_WAS_WRITTEN && this.piped) {
         process.stdout.write(JSON.stringify(this.source))
       }
