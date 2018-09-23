@@ -11,7 +11,7 @@ class MetadocPlugin extends EventEmitter {
 
     this.SOURCE = ''
     this.OUTPUT = ''
-    this.NAME = require('./package.json').name
+    this.NAME = require(require('path').join(__dirname, 'package.json')).name
     this.OUTPUT_WAS_WRITTEN = false
 
     this.on('start', () => console.log(`Started ${this.name}`))
@@ -59,6 +59,13 @@ class MetadocPlugin extends EventEmitter {
       try {
         this.SOURCE = JSON.parse(data[1])
       } catch (e) {
+        if (data === null || data === undefined) {
+          console.log(chalk.red.bold('No source code (null).'))
+          process.emit('SIGINT')
+          process.exit(1)
+          return
+        }
+
         fs.writeFileSync('./error.output.log', data.toString(), 'utf8')
         console.error(chalk.red.bold(e.message))
         console.log('\n' + chalk.yellow.bold('Problem within:\n') + chalk.gray(`${data.toString().substr(0,75)}\n...clipped...\n${data.toString().substr(data.toString().length - 75)}`))
@@ -158,7 +165,8 @@ class MetadocPlugin extends EventEmitter {
   monitorStdin () {
     let content = ''
     let timer = setTimeout(() => {
-      console.error(`No input supplied to ${this.name}.`)
+      console.log('===', __dirname);
+      console.error(`No input supplied to XXX${this.name}.`)
       process.exit(1)
     }, 2000)
 
