@@ -17,6 +17,11 @@ class MetadocPlugin extends EventEmitter {
     this.on('start', () => console.log(`Started ${this.name}`))
 
     process.on('exit', () => console.log(this.exitMessage))
+
+    process.on('beforeExit', (exitCode = 0) => {
+      this.pipeOutput()
+      process.exit(exitCode)
+    })
   }
 
   get exitMessage () {
@@ -61,6 +66,8 @@ class MetadocPlugin extends EventEmitter {
       } catch (e) {
         if (data === null || data === undefined) {
           console.log(chalk.red.bold('No source code (null).'))
+          console.log(chalk.red.bold(`Output from ${this.name}`))
+          console.log(chalk.gray(value))
           process.emit('SIGINT')
           process.exit(1)
           return
@@ -165,13 +172,9 @@ class MetadocPlugin extends EventEmitter {
   monitorStdin () {
     let content = ''
     let timer = setTimeout(() => {
-      console.log('===', __dirname);
-      console.error(`No input supplied to XXX${this.name}.`)
+      console.log(chalk.red.bold(`No input supplied to ${this.name}.`))
       process.exit(1)
-    }, 2000)
-
-    process.stdin.resume()
-    process.stdin.setEncoding('utf8')
+    }, 1000)
 
     process.stdin.on('data', d => {
       if (timer !== null) {
@@ -187,11 +190,21 @@ class MetadocPlugin extends EventEmitter {
       this.process()
     })
 
+    process.stdin.resume()
+    process.stdin.setEncoding('utf8')
+
     this.emit('monitor.stdin')
   }
 
   process () {
     console.log(`The ${this.name} (v${this.version}) plugin should override the process() method with its own implementation.`)
+  }
+
+  // Pipe the output to the next CLI tool
+  pipeOutput () {
+    if (this.piped) {
+      console.log(JSON.stringify(this.source))
+    }
   }
 
   identifyOutputDirectory () {
@@ -231,10 +244,6 @@ class MetadocPlugin extends EventEmitter {
     } else if (source) {
       fs.writeFileSync(source, content)
     }
-
-    if (this.piped) {
-      process.stdout.write(content)
-    }
   }
 
   get piped () {
@@ -247,10 +256,6 @@ class MetadocPlugin extends EventEmitter {
     if (source) {
       this.source = fs.readFileSync(source).toString()
       this.process()
-console.log(!this.OUTPUT_WAS_WRITTEN, this.piped);
-      if (!this.OUTPUT_WAS_WRITTEN && this.piped) {
-        process.stdout.write(JSON.stringify(this.source))
-      }
     } else {
       this.monitorStdin()
     }
