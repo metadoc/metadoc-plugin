@@ -3,7 +3,6 @@ const path = require('path')
 const minimist = require('minimist-string')
 const chalk = require('chalk')
 const EventEmitter = require('events').EventEmitter
-const pkg = require(path.join(process.cwd(), 'package.json'))
 
 class MetadocPlugin extends EventEmitter {
   constructor () {
@@ -37,7 +36,7 @@ class MetadocPlugin extends EventEmitter {
   }
 
   set name (value) {
-    this.NAME = name
+    this.NAME = value
   }
 
   get output () {
@@ -70,12 +69,11 @@ class MetadocPlugin extends EventEmitter {
           console.log(chalk.gray(value))
           process.emit('SIGINT')
           process.exit(1)
-          return
         }
 
         fs.writeFileSync('./error.output.log', data.toString(), 'utf8')
         console.error(chalk.red.bold(e.message))
-        console.log('\n' + chalk.yellow.bold('Problem within:\n') + chalk.gray(`${data.toString().substr(0,75)}\n...clipped...\n${data.toString().substr(data.toString().length - 75)}`))
+        console.log('\n' + chalk.yellow.bold('Problem within:\n') + chalk.gray(`${data.toString().substr(0, 75)}\n...clipped...\n${data.toString().substr(data.toString().length - 75)}`))
 
         if (e.message.toLowerCase().indexOf('json at position') >= 0) {
           let match = /position\s([0-9]+)/gi.exec(e.message)
@@ -126,6 +124,23 @@ class MetadocPlugin extends EventEmitter {
     }
 
     return dir
+  }
+
+  walk (directory) {
+    let paths = new Set()
+
+    fs.readdirSync(directory, { withFileTypes: true }).forEach(dir => {
+      if (dir.isDirectory()) {
+        let relativePath = path.join('./', dir.name)
+        let absolutePath = path.join(directory, relativePath)
+
+        paths.add(relativePath)
+
+        this.walk(absolutePath).forEach(value => paths.add(path.join(relativePath, value)))
+      }
+    })
+
+    return paths
   }
 
   verifyOutputDirectory () {
